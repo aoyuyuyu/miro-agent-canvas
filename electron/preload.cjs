@@ -32,5 +32,9 @@ contextBridge.exposeInMainWorld('miro', {
     const handler = (_event, payload) => callback(payload)
     ipcRenderer.on('agent:event', handler)
     return () => ipcRenderer.removeListener('agent:event', handler)
-  }
+  },
+  // 需求8：模型与思考强度
+  listModels: () => ipcRenderer.invoke('models:list'),
+  setModel: payload => ipcRenderer.invoke('models:set', payload),
+  registerModels: list => ipcRenderer.invoke('models:register', list)
 })

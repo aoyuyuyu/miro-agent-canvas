@@ -870,3 +870,86 @@ textarea { outline: 0; border: 0; background: transparent; resize: none; color: 
   stroke-linecap: round;
   stroke-linejoin: round;
 }
+
+/* ============ 需求8：会话框内的模型选择器 ============ */
+.model-picker {
+  position: relative;
+  margin-left: auto;
+  flex: 0 0 auto;
+}
+.model-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 220px;
+  padding: 3px 8px;
+  font-size: 11px;
+  line-height: 1.5;
+  color: #52525b;
+  background: #f4f4f5;
+  border: 1px solid #e4e4e7;
+  border-radius: 999px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.model-chip:hover {
+  color: #18181b;
+  background: #ededf0;
+}
+.model-name {
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.model-effort {
+  padding-left: 6px;
+  color: #a1a1aa;
+  border-left: 1px solid #d4d4d8;
+}
+.model-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 60;
+  min-width: 168px;
+  padding: 6px;
+  background: #ffffff;
+  border: 1px solid #e4e4e7;
+  border-radius: 12px;
+  box-shadow: 0 10px 28px rgba(24, 24, 27, 0.14);
+}
+.model-menu-group + .model-menu-group {
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px solid #f4f4f5;
+}
+.model-menu-title {
+  padding: 4px 8px;
+  font-size: 10px;
+  color: #a1a1aa;
+}
+.model-menu-item {
+  display: block;
+  width: 100%;
+  padding: 6px 8px;
+  font-size: 12px;
+  text-align: left;
+  color: #3f3f46;
+  background: transparent;
+  border: 0;
+  border-radius: 7px;
+  cursor: pointer;
+}
+.model-menu-item:hover {
+  background: #f4f4f5;
+}
+.model-menu-item.active {
+  color: #18181b;
+  background: #ededf0;
+  font-weight: 600;
+}
+.conversation-grip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}

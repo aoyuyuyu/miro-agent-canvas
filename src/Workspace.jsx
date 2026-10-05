@@ -223,6 +223,63 @@ const PORT_SIDES = [
   ['left', Position.Left]
 ]
 
+// 需求8：会话框内的模型与思考强度选择器。
+// 只对 Agent 会话框显示；用户会话框没有模型概念。
+function ModelPicker({ model, effort, models, efforts, onPickModel, onPickEffort, disabled }) {
+  const [open, setOpen] = useState(false)
+  if (disabled) return null
+  const modelLabel = models.find(m => m.id === model)?.label || '默认模型'
+  const effortLabel = efforts.find(e => e.id === effort)?.label || '默认思考'
+  return (
+    <div className="model-picker nodrag nopan" onClick={e => e.stopPropagation()}>
+      <button
+        type="button"
+        className="model-chip"
+        onClick={() => setOpen(v => !v)}
+        title="切换模型与思考能力"
+        aria-label="切换模型与思考能力"
+      >
+        <span className="model-name">{modelLabel}</span>
+        <span className="model-effort">{effortLabel}</span>
+      </button>
+      {open && (
+        <div className="model-menu" role="menu">
+          <div className="model-menu-group">
+            <div className="model-menu-title">模型</div>
+            {models.map(m => (
+              <button
+                key={m.id}
+                type="button"
+                role="menuitemradio"
+                aria-checked={model === m.id}
+                className={`model-menu-item ${model === m.id ? 'active' : ''}`}
+                onClick={() => { onPickModel(m.id); setOpen(false) }}
+              >
+                {m.label}
+              </button>
+            ))}
+          </div>
+          <div className="model-menu-group">
+            <div className="model-menu-title">思考能力</div>
+            {efforts.map(e => (
+              <button
+                key={e.id}
+                type="button"
+                role="menuitemradio"
+                aria-checked={effort === e.id}
+                className={`model-menu-item ${effort === e.id ? 'active' : ''}`}
+                onClick={() => { onPickEffort(e.id); setOpen(false) }}
+              >
+                {e.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 function Conversation({ id, data, selected }) {
   const isThinking = data.status === 'working'
   const isUnread = !isThinking && data.unread
@@ -248,6 +305,16 @@ function Conversation({ id, data, selected }) {
       <header className="conversation-grip">
         <Avatar item={data.item} small />
         <span className="conversation-title">{data.title}</span>
+        {/* 需求8：标题栏显示当前模型名，点击可切换模型与思考能力 */}
+        <ModelPicker
+          model={data.model}
+          effort={data.reasoningEffort}
+          models={data.models || []}
+          efforts={data.efforts || []}
+          disabled={!data.showModelPicker}
+          onPickModel={data.onPickModel}
+          onPickEffort={data.onPickEffort}
+        />
       </header>
 
       {/* 状态指示点：橙点（思考中）或绿点（新回复），已读后消失，取消关闭功能 */}
@@ -376,6 +443,9 @@ function Surface() {
 
   // 浮动输入框状态
   const [composerText, setComposerText] = useState('')
+  // 需求8：可选模型与思考强度
+  const [modelChoices, setModelChoices] = useState({ models: [], efforts: [] })
+  const [nodeModels, setNodeModels] = useState({})
 
   // 记录每个会话已读的消息数量
   const [readCounts, setReadCounts] = useState({})
@@ -796,6 +866,42 @@ function Surface() {
     commit([...graph.current.nodes, node])
   }
 
+  // 需求2：点击某个 Agent 头像，在画布新建该 Agent 的会话框。
+  // 不使用右键，不改筛选，因此不会出现蓝框高亮。
+  function handleAddNodeForGroup(group) {
+    if (!group) return
+    const representative = group.connected
+      ? group.members.find(m => m.id === 'codex') || group.members.find(m => m.connected) || group.members[0]
+      : group.members[0]
+    const node = {
+      id: 'local:' + crypto.randomUUID(),
+      type: 'agent',
+      local: true,
+      agentId: representative?.id,
+      provider: group.key,
+      software: group.key,
+      title: group.label || group.key,
+      position: location(),
+      width: 410,
+      height: 430,
+      messages: []
+    }
+    commit([...graph.current.nodes, node])
+  }
+
+  // 需求3：点击 Miro 头像，在画布新建「用户会话框」（你自己的输入框）。
+  function handleAddUserNode() {
+    const node = {
+      id: 'prompt:' + crypto.randomUUID(),
+      type: 'prompt',
+      position: location(),
+      width: 410,
+      height: 320,
+      messages: []
+    }
+    commit([...graph.current.nodes, node])
+  }
+
   // 右键 Agent 头像：弹出全新对话框；再次右键（若未开始聊天）则收回消失
   function handleRightClickAgent(group) {
     const existingNodeId = pendingRightClickNodes[group.key]
@@ -942,6 +1048,28 @@ function Surface() {
     }
   }, [flow, selectedNodes])
 
+  // 需求8：读取可用模型与思考强度
+  useEffect(() => {
+    let alive = true
+    window.miro?.listModels?.()
+      .then(list => { if (alive && list) setModelChoices(list) })
+      .catch(() => {})
+    return () => { alive = false }
+  }, [])
+
+  /* ---------- 需求1：鼠标移到历史会话左侧才收回 ---------- */
+  useEffect(() => {
+    const onMove = e => {
+      const el = shelfRef.current
+      if (!el) return
+      // 面板左边界：越过它（向左）即视为收回
+      const left = el.getBoundingClientRect().left
+      setShelfHovered(e.clientX > left - 12)
+    }
+    window.addEventListener('mousemove', onMove)
+    return () => window.removeEventListener('mousemove', onMove)
+  }, [])
+
   /* ---------- 需求10：空格键三态切换 ---------- */
   useEffect(() => {
     const onKey = e => {
@@ -956,6 +1084,16 @@ function Surface() {
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [toggleFocus])
+
+  /* ---------- 需求8：切换会话模型与思考能力 ---------- */
+  const applyModel = useCallback(async (nodeId, patch) => {
+    setNodeModels(prev => {
+      const cur = prev[nodeId] || {}
+      const next = { ...prev, [nodeId]: { ...cur, ...patch } }
+      return next
+    })
+    try { await window.miro?.setModel?.(patch) } catch {}
+  }, [])
 
   /* ---------- 需求5：重叠 / 展开选中会话（逻辑见 shared/workspace.js） ---------- */
   const toggleOverlapSelected = useCallback(() => {
@@ -1040,7 +1178,9 @@ function Surface() {
     return {
       ...n,
       wired: wiredIds.has(n.id),
-      dragHandle: '.conversation-grip',
+      // 需求4：整张卡片都是拖拽区，无需先点击选中再拖；标题栏不再被单独限死。
+      dragHandle: undefined,
+      draggable: true,
       data: {
         item: n.type === 'prompt' ? null : group || session,
         title:
@@ -1050,6 +1190,14 @@ function Surface() {
           messages.find(m => m.role === 'user')?.text.slice(0, 150) ||
           '会话',
         local: n.type === 'prompt',
+        // 需求8：仅 Agent 会话框可切换模型
+        showModelPicker: n.type === 'agent',
+        model: nodeModels[n.id]?.model || n.model || null,
+        reasoningEffort: nodeModels[n.id]?.reasoningEffort || n.reasoningEffort || null,
+        models: modelChoices.models,
+        efforts: modelChoices.efforts,
+        onPickModel: id => applyModel(n.id, { model: id }),
+        onPickEffort: id => applyModel(n.id, { reasoningEffort: id }),
         messages,
         media: n.media || [],
         error: n.error || native?.error || record?.error,
@@ -1070,8 +1218,8 @@ function Surface() {
   const activeKeys = new Set(nodes.map(n => n.historyKey).filter(Boolean))
   const currentFilterKey = shelfHovered && hoverFilter !== undefined ? hoverFilter : filter
   const filterGroup = groups.find(g => g.key === currentFilterKey)
-  // 需求3：取消点击常显。历史会话只由鼠标所在区域决定去留：
-  // 悬停头像或历史会话（含两者之间的过渡区）都保持显示，只有移回左侧画布才收回。
+  // 需求1：历史会话只在鼠标进入其左侧区域（离开面板、回到画布方向）时才收回。
+  const shelfRef = useRef(null)
   const isShelfOpen = shelfHovered
   const displayedHistory = catalog.filter(
     s => !activeKeys.has(s.key) && (!filterGroup || sessionMatchesGroup(s, filterGroup))
@@ -1093,16 +1241,17 @@ function Surface() {
     }
   } else if (selectedNodes.length > 1) {
     composerMode = 'multi'
+    // 需求7：多选时同样渲染在包围盒的下方
     let maxX = -Infinity
-    let minY = Infinity
+    let maxBottom = -Infinity
     selectedNodes.forEach(n => {
       const w = n.width || 410
-      if (n.position.x + w > maxX) maxX = n.position.x + w
-      if (n.position.y < minY) minY = n.position.y
+      const h = n.height || (n.type === 'prompt' ? 320 : 430)
+      maxX = Math.max(maxX, n.position.x)
+      maxBottom = Math.max(maxBottom, n.position.y + h)
     })
-    // 渲染在多选包围盒的右侧
     composerStyle = {
-      transform: `translate(${maxX + 20}px, ${minY}px)`,
+      transform: `translate(${maxX}px, ${maxBottom + 12}px)`,
       width: '420px'
     }
   }
@@ -1159,17 +1308,6 @@ function Surface() {
         />
       </div>
 
-      {/* 最左侧加号按钮：点击弹出会话框 */}
-      <button
-        type="button"
-        className="canvas-add-btn nodrag"
-        aria-label="新建会话框"
-        title="点击在画布中新建会话框"
-        onClick={handleAddNode}
-      >
-        <Icon name="plus" />
-      </button>
-
       {/* 画布区域 */}
       <div
         className="workspace"
@@ -1207,21 +1345,25 @@ function Surface() {
           deleteKeyCode={['Backspace', 'Delete']}
           connectionLineStyle={{ stroke: '#a1a1aa', strokeWidth: 2.5 }}
           proOptions={{ hideAttribution: true }}
-          /* 需求1+2：左键框选/选择，右键与中键平移画布，滚轮缩放画布 */
+          /* 需求2：右键与中键平移画布 */
           panOnDrag={[1, 2]}
+          /* 需求1：左键在空白处拖拽即框选 */
           selectionOnDrag
-          selectionKeyCode="Shift"
           selectionMode={SelectionMode.Partial}
-          multiSelectionKeyCode={['Shift', 'Meta', 'Control']}
-          panOnScroll={false}
+          /* 需求4：节点无需先点击即可直接拖动（整卡都是拖拽把手） */
+          nodesDraggable
+          /* 需求5：滚轮直接缩放，不需按 Ctrl */
           zoomOnScroll
+          zoomOnScrollSpeed={0.2}
+          panOnScroll={false}
           zoomOnPinch
-          panOnScrollMode={PanOnScrollMode.Free}
+          zoomActivationKeyCode={null}
           preventScrolling={false}
+          /* 需求2：屏蔽浏览器右键菜单，交给画布平移 */
           onContextMenu={e => e.preventDefault()}
         >
-          {/* 需求5+6：框选后顶部工具栏 —— 重叠/展开会话、自动排版 */}
-          {selectedNodes.length > 0 && (
+          {/* 需求6：仅多选（两个及以上）时才出现工具栏；单选不出现 */}
+          {selectedNodes.length > 1 && (
             <div className="selection-toolbar nodrag nopan" role="toolbar" aria-label="选中对话框工具">
               <button type="button" onClick={toggleOverlapSelected} title="重叠 / 展开所选会话">
                 <Icon name="layers" />
@@ -1294,18 +1436,10 @@ function Surface() {
       {/* 历史抽屉 */}
       {isShelfOpen && (
         <>
-        {/* 需求3：头像与历史会话之间的过渡桥。鼠标穿过这段间隙时不收回，
-            只有移回左侧画布区域才隐藏。 */}
-        <div
-          className="shelf-bridge nodrag"
-          aria-hidden="true"
-          onMouseEnter={() => setShelfHovered(true)}
-          onMouseLeave={() => setShelfHovered(false)}
-        />
         <aside
+          ref={shelfRef}
           className="history-shelf nodrag"
           onMouseEnter={() => setShelfHovered(true)}
-          onMouseLeave={() => setShelfHovered(false)}
         >
           <div
             className="history-scroll"
@@ -1364,16 +1498,13 @@ function Surface() {
               setHoverFilter(null)
               setShelfHovered(true)
             }}
-            onMouseLeave={() => setShelfHovered(false)}
           >
             <button
               className={`agent-button miro-button ${filter === null ? 'filtered' : ''}`}
               aria-label="Miro 全部历史"
               onClick={() => {
-                // 需求3：点击只切换筛选，不再把历史钉住常显
-                setFilter(null)
-                setInline(null)
-                setPage(80)
+                // 需求3：点击 Miro 头像在画布新建「用户会话框」
+                handleAddUserNode()
               }}
             >
               <Avatar isMiro />
@@ -1399,8 +1530,7 @@ function Surface() {
                   setHoverFilter(group.key)
                   setShelfHovered(true)
                 }}
-                onMouseLeave={() => setShelfHovered(false)}
-              >
+                  >
                 {/* 头顶状态点：思考中橙点（低频闪烁），未读绿点，已读后不出现任何点 */}
                 <div className="status-dots">
                   {isWorking ? (
@@ -1415,10 +1545,9 @@ function Surface() {
                   aria-label={`筛选 ${group.label || group.key} 历史`}
                   data-agent-group={group.key}
                   onClick={() => {
-                    // 需求3：点击只切换筛选，不再钉住常显
-                    setFilter(group.key)
-                    setInline(null)
-                    setPage(80)
+                    // 需求2：点击头像直接在画布新建该Agent 的会话框，
+                    // 不再切换筛选（因此不会出现蓝框高亮）。
+                    handleAddNodeForGroup(group)
                   }}
                   onContextMenu={e => {
                     e.preventDefault()

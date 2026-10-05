@@ -4,9 +4,20 @@ const path = require('node:path')
 function findCodex() {
   const roots = (process.env.PATH || '').split(path.delimiter)
   if (process.env.APPDATA) roots.push(path.join(process.env.APPDATA, 'npm'))
+  if (process.env.HOME) roots.push(path.join(process.env.HOME, '.npm-global', 'bin'))
+  if (process.env.HOME) roots.push(path.join(process.env.HOME, '.local', 'bin'))
+  const isWin = process.platform === 'win32'
   for (const root of roots) {
-    const direct = path.join(root, process.platform === 'win32' ? 'codex.exe' : 'codex')
-    if (fs.existsSync(direct)) return direct
+    // npm 全局安装时真正可执行文件在 vendor 的 bin/ 下（codex doctor 确认的路径），
+    // 直接用它可避免 .cmd shim 带来的 cmd.exe 转义与额外进程开销。
+    const vendorBin = path.join(root, 'node_modules', '@openai', 'codex', 'node_modules', '@openai', 'codex-win32-x64', 'vendor', 'x86_64-pc-windows-msvc', 'bin', 'codex.exe')
+    if (isWin && fs.existsSync(vendorBin)) return vendorBin
+    // PATH 上的 shim：npm 只会生成 codex / codex.cmd / codex.ps1，没有 codex.exe
+    const candidates = isWin ? ['codex.cmd', 'codex', 'codex.exe', 'codex.ps1'] : ['codex']
+    for (const name of candidates) {
+      const direct = path.join(root, name)
+      if (fs.existsSync(direct)) return direct
+    }
     const vendor = path.join(root, 'node_modules', '@openai', 'codex', 'node_modules', '@openai', 'codex-win32-x64', 'vendor', 'x86_64-pc-windows-msvc', 'codex', 'codex.exe')
     if (fs.existsSync(vendor)) return vendor
   }
@@ -16,6 +27,16 @@ class CodexAdapter {
   constructor({ emit, getThreadId, setThreadId, getWorkspace }) {
     Object.assign(this, { emit, getThreadId, setThreadId, getWorkspace })
     this.currentProcess = null
+    // 需求8：每个会话可选的模型与思考强度
+    this.model = null
+    this.reasoningEffort = null
+  }
+
+  // 需求8：设置该会话使用的模型与思考强度
+  setModel({ model, reasoningEffort } = {}) {
+    if (model !== undefined) this.model = model ? String(model) : null
+    if (reasoningEffort !== undefined) this.reasoningEffort = reasoningEffort ? String(reasoningEffort) : null
+    return { model: this.model, reasoningEffort: this.reasoningEffort }
   }
   async detect() {
     if (process.env.MIRO_MOCK === '1') return { connected: true, version: '模拟模式' }
@@ -48,11 +69,23 @@ class CodexAdapter {
       } finally { this.currentProcess = null }
     }
     const threadId = this.getThreadId()
+    // 需求8：按会话选择的模型与思考强度注入 Codex CLI
+    const model = this.model
+    const effort = this.reasoningEffort
+    // 空值表示「跟随 Codex 自身配置」，此时不注入 --model，
+    // 避免把账号不支持的模型名写死进命令。
+    const modelArgs = []
+    if (model) modelArgs.push('--model', model)
+    if (effort) modelArgs.push('-c', `model_reasoning_effort=${effort}`)
+    const base = threadId
+      ? ['exec', 'resume', '--json', '--skip-git-repo-check']
+      : ['exec', '--json', '--skip-git-repo-check']
     const args = threadId
-      ? ['exec', 'resume', '--json', '--skip-git-repo-check', threadId, '-']
-      : ['exec', '--json', '--skip-git-repo-check', '-']
+      ? [...base, ...modelArgs, threadId, '-']
+      : [...base, ...modelArgs, '-']
     return new Promise((resolve, reject) => {
       let child
+      // Orca 的 resolveSpawn 已自动对 .cmd/.bat 走 cmd.exe shim，无需手动 shell。
       try { child = spawnProcess({program:command, args, cwd:this.getWorkspace(), env:process.env}) }
       catch { this.currentProcess = null; reject(new Error('无法启动助手，请检查安装和工作目录')); return }
       this.currentProcess = child

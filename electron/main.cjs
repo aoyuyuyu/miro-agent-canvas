@@ -23,14 +23,14 @@ function revealWindow() {
   mainWindow.moveTop()
 }
 app.on('second-instance', revealWindow)
-const defaults = () => ({ sessions: { codex: null }, messages: [], alwaysOnTop: true, workspace: path.join(app.getPath('documents'), 'Miro'), settings: { sound: false, glowIntensity: 'weak' } })
+const defaults = () => ({ sessions: { codex: null }, messages: [], alwaysOnTop: true, workspace: path.join(app.getPath('documents'), 'Miro'), settings: { sound: false, glowIntensity: 'weak' }, modelChoices: [] })
 let state
 function statePath() { return path.join(app.getPath('userData'), 'relay-session-state.json') }
 function loadState() {
   state = defaults()
   try {
     const saved = JSON.parse(fs.readFileSync(statePath(), 'utf8'))
-    state = { ...state, ...saved, sessions: { codex: saved.sessions?.codex || null }, messages: Array.isArray(saved.messages) ? saved.messages : [], settings: saved.settings || { sound: false, glowIntensity: 'weak' } }
+    state = { ...state, ...saved, sessions: { codex: saved.sessions?.codex || null }, messages: Array.isArray(saved.messages) ? saved.messages : [], settings: saved.settings || { sound: false, glowIntensity: 'weak' }, modelChoices: Array.isArray(saved.modelChoices) ? saved.modelChoices : [] }
   } catch {}
   fs.mkdirSync(state.workspace, { recursive: true })
 }
@@ -124,6 +124,33 @@ async function listAgents(){
   return agents
 }
 ipcMain.handle('agents:list', listAgents)
+// 需求8：可用模型与思考强度。
+// 不硬编码模型清单：ChatGPT 账号授权的模型随时间变化，写死会立刻失效。
+// 默认不传--model，沿用 Codex 自身配置；用户显式选择时才注入。
+const EFFORT_CHOICES = [
+  { id: '', label: '默认' },
+  { id: 'minimal', label: '最低' },
+  { id: 'low', label: '低' },
+  { id: 'medium', label: '中' },
+  { id: 'high', label: '高' },
+]
+ipcMain.handle('models:list', () => ({
+  models: [{ id: '', label: '默认（跟随 Codex 配置）' }, ...(state.modelChoices || [])],
+  efforts: EFFORT_CHOICES
+}))
+ipcMain.handle('models:register', (_event, list) => {
+  state.modelChoices = Array.isArray(list)
+    ? list.filter(m => m && m.id).map(m => ({ id: String(m.id), label: String(m.label || m.id) }))
+    : []
+  saveState()
+  return state.modelChoices
+})
+ipcMain.handle('models:set', (_event, payload = {}) => {
+  const result = codex?.setModel?.(payload) || { model: null, reasoningEffort: null }
+  saveState()
+  return result
+})
+
 ipcMain.handle('settings:get', () => state.settings || { sound: false, glowIntensity: 'weak' })
 ipcMain.handle('settings:set', (_event, value) => {
   state.settings = { ...(state.settings || { sound: false, glowIntensity: 'weak' }), ...(value || {}) }
