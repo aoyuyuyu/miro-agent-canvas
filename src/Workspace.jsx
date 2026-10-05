@@ -12,15 +12,22 @@ import {
   applyEdgeChanges,
   addEdge,
   useReactFlow,
-  useUpdateNodeInternals
+  useUpdateNodeInternals,
+  SelectionMode,
+  PanOnScrollMode,
+  getNodesBounds,
+  getViewportForBounds
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
 import {
   groupAgents,
   providerKey,
   sessionMatchesGroup,
-  settleNodes,
-  visibleAgentMessages
+  visibleAgentMessages,
+  pickPortSides,
+  autoLayout,
+  nodeSize,
+  toggleOverlap
 } from './shared/workspace.js'
 
 import codexAvatar from './assets/avatars/codex.png'
@@ -75,7 +82,11 @@ function Icon({ name }) {
     alert: 'M12 7v6M12 17h.01',
     history: 'M5 7a9 9 0 1 1-2 8M3 3v6h6M12 7v5l3 2',
     image: 'M4 6h16a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2zm2 10 4-4 3 3 4-5 5 6H6z',
-    video: 'm15 10 5-3v10l-5-3v2a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v2z'
+    video: 'm15 10 5-3v10l-5-3v2a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v2z',
+    // 需求5：重叠/展开会话
+    layers: 'M12 3 3 8l9 5 9-5-9-5ZM3 13l9 5 9-5M3 18l9 5 9-5',
+    // 需求6：自动排版
+    grid: 'M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z'
   }
   return (
     <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -204,13 +215,21 @@ function ResizeArcIcon() {
   )
 }
 
+// 需求8：四个方位的连接点，顺序即绘制顺序
+const PORT_SIDES = [
+  ['top', Position.Top],
+  ['right', Position.Right],
+  ['bottom', Position.Bottom],
+  ['left', Position.Left]
+]
+
 function Conversation({ id, data, selected }) {
   const isThinking = data.status === 'working'
   const isUnread = !isThinking && data.unread
 
   return (
     <section
-      className={`conversation ${data.local ? 'local-conversation' : ''} ${selected ? 'selected' : ''}`}
+      className={`conversation ${data.local ? 'local-conversation' : ''} ${selected ? 'selected' : ''} ${data.wired ? 'wired' : ''}`}
       data-conversation={id}
       onClick={data.onRead}
     >
@@ -238,8 +257,21 @@ function Conversation({ id, data, selected }) {
         <span className="status-indicator replied" title="新回复（点击已读）" />
       ) : null}
 
-      <Handle type="target" position={Position.Bottom} id="in" className="input-port" aria-label="接收连线" />
-      <Handle type="source" position={Position.Top} id="out" className="output-port" aria-label="转交会话" />
+      {/* 需求8+9：四向连接点。默认隐藏，仅鼠标靠近该侧时该侧才出现。
+          位置键供需求9 判断两框相对方向并选择最近的一侧连线。 */}
+      {PORT_SIDES.map(([side, pos]) => (
+        <Handle
+          key={side}
+          type="source"
+          position={pos}
+          id={`out-${side}`}
+          className={`edge-port port-${side}`}
+          isConnectableStart
+          isConnectableEnd
+          aria-label={`从${side}连接`}
+          data-port-side={side}
+        />
+      ))}
 
       <Messages
         messages={data.messages}
@@ -331,7 +363,6 @@ function Surface() {
   const [edges, setEdges] = useState([])
 
   const [ready, setReady] = useState(false)
-  const [shelfPinned, setShelfPinned] = useState(false)
   const [shelfHovered, setShelfHovered] = useState(false)
   const [filter, setFilter] = useState(null)
   const [hoverFilter, setHoverFilter] = useState(null)
@@ -374,10 +405,10 @@ function Surface() {
     setTimeout(() => setFeedback(null), 1800)
   }, [])
 
-  const commit = (nextNodes, nextEdges = graph.current.edges, anchor) => {
-    const laidOut = settleNodes(nextNodes, anchor)
-    graph.current = { nodes: laidOut, edges: nextEdges }
-    setNodes(laidOut)
+  // 需求4：取消磁吸与碰撞避让，对话框允许自由重叠。仅保留原坐标。
+  const commit = (nextNodes, nextEdges = graph.current.edges) => {
+    graph.current = { nodes: nextNodes, edges: nextEdges }
+    setNodes(nextNodes)
     setEdges(nextEdges)
   }
 
@@ -457,7 +488,12 @@ function Surface() {
           .map(n => ({ ...n, recipients: n.recipients || [], messages: n.messages || [], media: n.media || [] }))
         const valid = (saved?.edges || [])
           .filter(e => restored.some(n => n.id === e.source) && restored.some(n => n.id === e.target))
-          .map(e => ({ ...e, sourceHandle: e.sourceHandle === 'session' || e.sourceHandle === 'text' ? 'out' : e.sourceHandle }))
+          .map(e => ({
+            ...e,
+            sourceHandle: e.sourceHandle === 'session' || e.sourceHandle === 'text' || e.sourceHandle === 'out'
+              ? 'out-top'
+              : e.sourceHandle
+          }))
         commit(restored, valid)
         if (saved?.viewport) flow.setViewport(saved.viewport)
         setReady(true)
@@ -494,7 +530,7 @@ function Surface() {
       window.miro
         .saveCanvas({
           nodes: graph.current.nodes.map(serial),
-          edges: graph.current.edges.map(({ id, source, target, sourceHandle = 'out', targetHandle = 'in' }) => ({
+          edges: graph.current.edges.map(({ id, source, target, sourceHandle = 'out-top', targetHandle = 'in-top' }) => ({
             id,
             source,
             target,
@@ -605,7 +641,7 @@ function Surface() {
           nextEdges
         )
       })
-    commit(nextNodes, nextEdges, id)
+    commit(nextNodes, nextEdges)
   }
 
   function removeWires(ids) {
@@ -864,11 +900,13 @@ function Surface() {
     return () => window.removeEventListener('paste', handlePaste)
   }, [handlePaste])
 
-  function connect(connection) {
-    if (connection.source === connection.target) return
-    const target = graph.current.nodes.find(n => n.id === connection.target)
+  function connect(rawConnection) {
+    if (rawConnection.source === rawConnection.target) return
+    const target = graph.current.nodes.find(n => n.id === rawConnection.target)
     const group = groupFor(target || {})
     if (!['agent', 'history'].includes(target?.type) || !group) return
+    // 需求9：按两框相对位置选择最近的方位作为连线端点
+    const connection = { ...rawConnection, ...pickPortSides(rawConnection, graph.current.nodes) }
     const nextEdges = addEdge({ ...connection, id: 'wire:' + crypto.randomUUID() }, graph.current.edges)
     commit(
       graph.current.nodes.map(n =>
@@ -881,6 +919,99 @@ function Surface() {
   // 选中的节点列表
   const selectedNodes = nodes.filter(n => n.selected)
 
+  /* ---------- 需求10：空格键三态切换：聚焦选中 -> 全览所有 -> 聚焦选中 ---------- */
+  const focusCycle = useRef('focused')
+  const toggleFocus = useCallback(() => {
+    if (!graph.current.nodes.length) return
+    const ids = selectedNodes.map(n => n.id)
+    const targets = ids.length ? graph.current.nodes.filter(n => ids.includes(n.id)) : graph.current.nodes
+    const mode = focusCycle.current === 'focused' ? 'overview' : 'focused'
+    focusCycle.current = mode
+    const rect = flow.wrapper?.getBoundingClientRect?.()
+    const width = rect?.width || window.innerWidth
+    const height = rect?.height || window.innerHeight
+    if (mode === 'overview') {
+      // 需求10：全览所有会话框
+      flow.fitView({ nodes: graph.current.nodes, padding: 0.15, duration: 320, maxZoom: 1 })
+    } else if (targets.length) {
+      // 需求10：聚焦到所选会话框。
+      // getViewportForBounds 是 6 个位置参数 (bounds, width, height, minZoom, maxZoom, padding)，
+      // 误把对象当第 4 个参数传入会被解读为 minZoom，clamp 出 NaN，setViewport 静默失效。
+      const bounds = getNodesBounds(targets)
+      flow.setViewport(getViewportForBounds(bounds, width, height, 0.15, 1, 0.25))
+    }
+  }, [flow, selectedNodes])
+
+  /* ---------- 需求10：空格键三态切换 ---------- */
+  useEffect(() => {
+    const onKey = e => {
+      // 输入框内打字时不触发
+      const tag = (e.target?.tagName || '').toLowerCase()
+      if (tag === 'input' || tag === 'textarea' || e.target?.isContentEditable) return
+      if (e.code === 'Space' || e.key === ' ') {
+        e.preventDefault()
+        toggleFocus()
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [toggleFocus])
+
+  /* ---------- 需求5：重叠 / 展开选中会话（逻辑见 shared/workspace.js） ---------- */
+  const toggleOverlapSelected = useCallback(() => {
+    const ids = selectedNodes.map(n => n.id)
+    if (!ids.length) return
+    commit(toggleOverlap(graph.current.nodes, ids))
+  }, [selectedNodes])
+
+  /* ---------- 需求6：自动排版（参考 pureRef 的紧凑网格） ---------- */
+  const handleAutoLayout = useCallback(() => {
+    const ids = new Set(selectedNodes.map(n => n.id))
+    const targets = graph.current.nodes.filter(n => ids.has(n.id))
+    const rest = graph.current.nodes.filter(n => !ids.has(n.id))
+    const laid = autoLayout(targets.length ? targets : graph.current.nodes)
+    const maxY = Math.max(0, ...laid.map(n => n.position.y + nodeSize(n).height))
+    commit([
+      ...laid,
+      ...rest.map(n => ({ ...n, position: { x: n.position.x, y: Math.max(n.position.y, maxY + 64) } }))
+    ].sort(byId))
+  }, [selectedNodes])
+
+  /* ---------- 需求1：框选后点加号，新建可群发给框选内所有 Agent 的窗口 ---------- */
+  const spawnForSelection = useCallback(() => {
+    const ids = new Set(selectedNodes.map(n => n.id))
+    if (!ids.size) return
+    const targets = graph.current.nodes.filter(n => ids.has(n.id))
+    const keys = new Set()
+    for (const n of targets) {
+      for (const k of n.recipients || []) keys.add(k)
+      if (n.type === 'agent') {
+        const g = snapshot.current.groups.find(x => sessionMatchesGroup(n, x) || x.key === n.agentId)
+        if (g) keys.add(g.key)
+      }
+    }
+    if (!keys.size) return
+    // 放在框选包围盒右侧
+    let maxX = -Infinity, minY = Infinity
+    for (const n of targets) {
+      maxX = Math.max(maxX, n.position.x + nodeSize(n).width)
+      minY = Math.min(minY, n.position.y)
+    }
+    const node = {
+      id: 'local:' + crypto.randomUUID(),
+      type: 'agent',
+      local: true,
+      recipients: [...keys],
+      position: { x: maxX + 48, y: Number.isFinite(minY) ? minY : 0 },
+      width: 400,
+      height: 320,
+      messages: [],
+      selected: true
+    }
+    // 新节点自动选中，composer 随之出现在它下方，可直接输入并群发
+    commit([...graph.current.nodes.map(n => ({ ...n, selected: false })), node])
+  }, [selectedNodes])
+
   // 处理输入框发送（支持单选与多选批量发送）
   const handleSendComposer = async () => {
     if (!composerText.trim() || !selectedNodes.length) return
@@ -892,6 +1023,9 @@ function Surface() {
   }
 
   // 装饰所有节点
+  // 需求9：已连线的节点不再常显圆点（仅 hover 时可再连接）
+  const wiredIds = new Set(edges.flatMap(e => [e.source, e.target]))
+
   const decorated = nodes.map(n => {
     const group = groupFor(n)
     const session = catalog.find(s => s.key === n.historyKey)
@@ -905,6 +1039,7 @@ function Surface() {
 
     return {
       ...n,
+      wired: wiredIds.has(n.id),
       dragHandle: '.conversation-grip',
       data: {
         item: n.type === 'prompt' ? null : group || session,
@@ -935,7 +1070,9 @@ function Surface() {
   const activeKeys = new Set(nodes.map(n => n.historyKey).filter(Boolean))
   const currentFilterKey = shelfHovered && hoverFilter !== undefined ? hoverFilter : filter
   const filterGroup = groups.find(g => g.key === currentFilterKey)
-  const isShelfOpen = shelfPinned || shelfHovered
+  // 需求3：取消点击常显。历史会话只由鼠标所在区域决定去留：
+  // 悬停头像或历史会话（含两者之间的过渡区）都保持显示，只有移回左侧画布才收回。
+  const isShelfOpen = shelfHovered
   const displayedHistory = catalog.filter(
     s => !activeKeys.has(s.key) && (!filterGroup || sessionMatchesGroup(s, filterGroup))
   )
@@ -967,6 +1104,23 @@ function Surface() {
     composerStyle = {
       transform: `translate(${maxX + 20}px, ${minY}px)`,
       width: '420px'
+    }
+  }
+
+  // 需求1：加号定位在框选包围盒右侧中部
+  let selectionAddStyle = null
+  if (selectedNodes.length > 0) {
+    let maxX = -Infinity
+    let minY = Infinity
+    let maxY = -Infinity
+    selectedNodes.forEach(n => {
+      const w = n.width || 410
+      maxX = Math.max(maxX, n.position.x + w)
+      minY = Math.min(minY, n.position.y)
+      maxY = Math.max(maxY, n.position.y + (n.height || 430))
+    })
+    selectionAddStyle = {
+      transform: `translate(${maxX + 20}px, ${(minY + maxY) / 2 - 20}px)`
     }
   }
 
@@ -1037,8 +1191,7 @@ function Surface() {
           nodeTypes={nodeTypes}
           edgeTypes={edgeTypes}
           onNodesChange={changes => {
-            const anchor = changes.find(c => c.type === 'position' || c.type === 'dimensions')?.id
-            commit(applyNodeChanges(changes, graph.current.nodes), graph.current.edges, anchor)
+            commit(applyNodeChanges(changes, graph.current.nodes), graph.current.edges)
           }}
           onEdgesChange={changes => {
             const removals = changes.filter(c => c.type === 'remove').map(c => c.id)
@@ -1048,13 +1201,54 @@ function Surface() {
           onConnect={connect}
           onEdgeDoubleClick={(_e, edge) => removeWires([edge.id])}
           onMoveEnd={persist}
-          minZoom={0.25}
-          maxZoom={2}
+          minZoom={0.15}
+          maxZoom={2.5}
           defaultEdgeOptions={{ style: { stroke: '#a1a1aa', strokeWidth: 2.5 }, interactionWidth: 26 }}
           deleteKeyCode={['Backspace', 'Delete']}
           connectionLineStyle={{ stroke: '#a1a1aa', strokeWidth: 2.5 }}
           proOptions={{ hideAttribution: true }}
+          /* 需求1+2：左键框选/选择，右键与中键平移画布，滚轮缩放画布 */
+          panOnDrag={[1, 2]}
+          selectionOnDrag
+          selectionKeyCode="Shift"
+          selectionMode={SelectionMode.Partial}
+          multiSelectionKeyCode={['Shift', 'Meta', 'Control']}
+          panOnScroll={false}
+          zoomOnScroll
+          zoomOnPinch
+          panOnScrollMode={PanOnScrollMode.Free}
+          preventScrolling={false}
+          onContextMenu={e => e.preventDefault()}
         >
+          {/* 需求5+6：框选后顶部工具栏 —— 重叠/展开会话、自动排版 */}
+          {selectedNodes.length > 0 && (
+            <div className="selection-toolbar nodrag nopan" role="toolbar" aria-label="选中对话框工具">
+              <button type="button" onClick={toggleOverlapSelected} title="重叠 / 展开所选会话">
+                <Icon name="layers" />
+                <span>重叠/展开</span>
+              </button>
+              <button type="button" onClick={handleAutoLayout} title="自动排版所选会话">
+                <Icon name="grid" />
+                <span>自动排版</span>
+              </button>
+              <span className="selection-count">已选 {selectedNodes.length}</span>
+            </div>
+          )}
+
+          {/* 需求1：框选后在旁边显示加号，点击新建可群发的窗口 */}
+          {selectedNodes.length > 0 && (
+            <button
+              type="button"
+              className="selection-add nodrag nopan"
+              style={selectionAddStyle}
+              onClick={spawnForSelection}
+              title="新建会话并发送给框选内的所有 Agent"
+              aria-label="新建会话并群发给所选 Agent"
+            >
+              <Icon name="plus" />
+            </button>
+          )}
+
           {/* 浮动输入框（参考图 1：单选在下方，多选在旁边） */}
           {composerStyle && (
             <div className={`floating-composer nodrag nowheel ${composerMode}`} style={composerStyle}>
@@ -1099,6 +1293,15 @@ function Surface() {
 
       {/* 历史抽屉 */}
       {isShelfOpen && (
+        <>
+        {/* 需求3：头像与历史会话之间的过渡桥。鼠标穿过这段间隙时不收回，
+            只有移回左侧画布区域才隐藏。 */}
+        <div
+          className="shelf-bridge nodrag"
+          aria-hidden="true"
+          onMouseEnter={() => setShelfHovered(true)}
+          onMouseLeave={() => setShelfHovered(false)}
+        />
         <aside
           className="history-shelf nodrag"
           onMouseEnter={() => setShelfHovered(true)}
@@ -1148,6 +1351,7 @@ function Surface() {
             ))}
           </div>
         </aside>
+        </>
       )}
 
       {/* 右侧 Agent 栏 */}
@@ -1163,15 +1367,11 @@ function Surface() {
             onMouseLeave={() => setShelfHovered(false)}
           >
             <button
-              className={`agent-button miro-button ${filter === null && shelfPinned ? 'filtered' : ''}`}
+              className={`agent-button miro-button ${filter === null ? 'filtered' : ''}`}
               aria-label="Miro 全部历史"
               onClick={() => {
-                if (shelfPinned && filter === null) {
-                  setShelfPinned(false)
-                } else {
-                  setFilter(null)
-                  setShelfPinned(true)
-                }
+                // 需求3：点击只切换筛选，不再把历史钉住常显
+                setFilter(null)
                 setInline(null)
                 setPage(80)
               }}
@@ -1211,16 +1411,12 @@ function Surface() {
                 </div>
 
                 <button
-                  className={`agent-button ${group.connected ? '' : 'offline'} ${filter === group.key && shelfPinned ? 'filtered' : ''}`}
+                  className={`agent-button ${group.connected ? '' : 'offline'} ${filter === group.key ? 'filtered' : ''}`}
                   aria-label={`筛选 ${group.label || group.key} 历史`}
                   data-agent-group={group.key}
                   onClick={() => {
-                    if (shelfPinned && filter === group.key) {
-                      setShelfPinned(false)
-                    } else {
-                      setFilter(group.key)
-                      setShelfPinned(true)
-                    }
+                    // 需求3：点击只切换筛选，不再钉住常显
+                    setFilter(group.key)
                     setInline(null)
                     setPage(80)
                   }}
@@ -1235,31 +1431,35 @@ function Surface() {
               </div>
             )
           })}
-        </div>
 
-        {/* 底部与 Agent 头像同样大小的加号按钮 */}
-        <div className="add-agent-slot">
-          {copyBubble && (
-            <div className="copy-prompt-bubble">
-              已复制，请发送给您的Agent
-            </div>
-          )}
+          {/* 需求7：加号做成与 Agent 头像同尺寸的头像，放在头像列表末尾，
+              随列表滚动，滚到最下面才可见。 */}
+          <div className="add-agent-slot">
+            {copyBubble && (
+              <div className="copy-prompt-bubble">
+                已复制，请发送给您的Agent
+              </div>
+            )}
+            <button
+              type="button"
+              className="agent-button add-agent-avatar"
+              aria-label="新建会话窗口"
+              onClick={handleAddNode}
+              title="新建会话窗口"
+            >
+              <Icon name="plus" />
+            </button>
+          </div>
+
+          {/* 复制接入提示词：保留原有能力，改为紧凑小按钮 */}
           <button
             type="button"
-            className="agent-button add-agent-avatar"
+            className="rail-mini-btn"
             aria-label="复制接入提示词"
             onClick={handleCopyPrompt}
-            title="点击复制接入提示词"
+            title="复制接入提示词，发给您的Agent"
           >
-            {copyBubble ? (
-              <span className="dots-icon">
-                <i />
-                <i />
-                <i />
-              </span>
-            ) : (
-              <Icon name="plus" />
-            )}
+            <Icon name="person" />
           </button>
         </div>
       </aside>

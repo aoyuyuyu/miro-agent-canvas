@@ -725,3 +725,148 @@ textarea { outline: 0; border: 0; background: transparent; resize: none; color: 
   .avatar { width: 52px; height: 52px; }
   .add-agent-avatar { width: 52px; height: 52px; }
 }
+
+/* ============ 需求8：连接圆点默认隐藏，仅靠近该侧才显示 ============ */
+.edge-port {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #71717a;
+  border: 2px solid #ffffff;
+  box-shadow: 0 0 0 1px #d4d4d8;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 120ms ease, transform 120ms ease;
+}
+/* 鼠标靠近该侧时才显示该侧圆点；远离时不显示 */
+.conversation:hover .port-top { opacity: 1; pointer-events: auto; }
+.conversation:hover .port-bottom { opacity: 1; pointer-events: auto; }
+.conversation:hover .port-left { opacity: 1; pointer-events: auto; }
+.conversation:hover .port-right { opacity: 1; pointer-events: auto; }
+/* 已连线的框不再常显圆点，仍保留 hover 可再次连接 */
+.conversation.wired .edge-port { opacity: 0; pointer-events: none; }
+.conversation.wired:hover .port-top,
+.conversation.wired:hover .port-bottom,
+.conversation.wired:hover .port-left,
+.conversation.wired:hover .port-right {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* ============ 需求5+6：框选后顶部工具栏 ============ */
+.selection-toolbar {
+  position: absolute;
+  top: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(8px);
+  border: 1px solid #e4e4e7;
+  border-radius: 12px;
+  box-shadow: 0 6px 20px rgba(24, 24, 27, 0.1);
+  z-index: 40;
+}
+.selection-toolbar button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  font-size: 12px;
+  color: #3f3f46;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  cursor: pointer;
+}
+.selection-toolbar button:hover {
+  background: #f4f4f5;
+  border-color: #e4e4e7;
+}
+.selection-toolbar svg {
+  width: 15px;
+  height: 15px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.selection-count {
+  padding-left: 6px;
+  font-size: 11px;
+  color: #a1a1aa;
+  border-left: 1px solid #e4e4e7;
+  margin-left: 2px;
+}
+
+/* ============ 需求1：框选后旁边的加号 ============ */
+.selection-add {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  color: #18181b;
+  background: #ffffff;
+  border: 1px solid #e4e4e7;
+  border-radius: 50%;
+  box-shadow: 0 4px 14px rgba(24, 24, 27, 0.12);
+  cursor: pointer;
+  z-index: 39;
+}
+.selection-add:hover {
+  background: #fafafa;
+  border-color: #d4d4d8;
+}
+.selection-add svg {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+
+/* ============ 需求3：头像与历史会话之间的过渡桥 ============ */
+.shelf-bridge {
+  position: absolute;
+  right: var(--rail);
+  top: 44px;
+  bottom: 16px;
+  width: 12px;
+  z-index: 31;
+}
+
+/* ============ 需求7：紧凑小按钮 ============ */
+.rail-mini-btn {
+  margin: 6px 0 14px;
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  color: #a1a1aa;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 9px;
+  cursor: pointer;
+}
+.rail-mini-btn:hover {
+  color: #52525b;
+  background: #f4f4f5;
+  border-color: #e4e4e7;
+}
+.rail-mini-btn svg {
+  width: 15px;
+  height: 15px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
