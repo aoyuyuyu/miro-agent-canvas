@@ -12,6 +12,7 @@
     "start": "npm run build && electron .",
     "start:built": "electron .",
     "test": "node --test tests/*.test.cjs tests/*.test.mjs",
+    "test:tray": "electron scripts/tray-verify.cjs && electron scripts/tray-byte-audit.cjs",
     "build:vendor": "node scripts/build-vendor.mjs"
   },
   "dependencies": {
