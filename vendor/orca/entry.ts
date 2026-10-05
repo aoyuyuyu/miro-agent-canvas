@@ -1,0 +1,6 @@
+export {readMetadata,getDefaultUserDataPath} from './src/cli/runtime/metadata.ts'
+export {sendRequest} from './src/cli/runtime/transport.ts'
+export {runProcess,spawnProcess} from './src/shared/child-process/run-process.ts'
+export {TUI_AGENT_CONFIG,getTuiAgentLaunchCommand,getTuiAgentDetectCommands} from './src/shared/tui-agent-config.ts'
+export {createCodebuddySessionParseState,consumeCodebuddySessionLine,finalizeCodebuddySessionParseState} from './src/main/ai-vault/session-scanner-codebuddy-parser.ts'
+export {isKnownHarnessInjectedUserTurnText} from './src/shared/harness-injected-user-turns.ts'

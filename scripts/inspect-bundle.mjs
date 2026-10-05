@@ -1,0 +1,1 @@
+import {rolldown} from 'rolldown';const b=await rolldown({input:'vendor/orca/entry.ts',external:['zod'],platform:'node',tsconfig:false});const r=await b.generate({format:'cjs'});console.log(JSON.stringify(Object.entries(r.output[0].modules).slice(0,2)));await b.close()

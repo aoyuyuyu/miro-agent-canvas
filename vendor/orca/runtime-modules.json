@@ -1,0 +1,214 @@
+{
+  "modules": [
+    {
+      "path": "src/shared/runtime-bootstrap.ts",
+      "renderedBytes": 556,
+      "effectiveCharacters": 440
+    },
+    {
+      "path": "src/shared/orchestration-compatibility-evidence.ts",
+      "renderedBytes": 1099,
+      "effectiveCharacters": 898
+    },
+    {
+      "path": "src/cli/runtime/types.ts",
+      "renderedBytes": 262,
+      "effectiveCharacters": 170
+    },
+    {
+      "path": "src/cli/runtime/metadata.ts",
+      "renderedBytes": 1346,
+      "effectiveCharacters": 1130
+    },
+    {
+      "path": "src/shared/runtime-rpc-envelope.ts",
+      "renderedBytes": 928,
+      "effectiveCharacters": 755
+    },
+    {
+      "path": "src/shared/timer-delay.ts",
+      "renderedBytes": 242,
+      "effectiveCharacters": 157
+    },
+    {
+      "path": "src/cli/runtime/runtime-pid-liveness.ts",
+      "renderedBytes": 296,
+      "effectiveCharacters": 176
+    },
+    {
+      "path": "src/cli/runtime/runtime-access-denied.ts",
+      "renderedBytes": 1025,
+      "effectiveCharacters": 813
+    },
+    {
+      "path": "src/cli/runtime/transport.ts",
+      "renderedBytes": 4085,
+      "effectiveCharacters": 3178
+    },
+    {
+      "path": "src/shared/child-process/windows-command-line.ts",
+      "renderedBytes": 4084,
+      "effectiveCharacters": 1108
+    },
+    {
+      "path": "src/shared/child-process/windows-cmd-shim-resolution.ts",
+      "renderedBytes": 12622,
+      "effectiveCharacters": 5557
+    },
+    {
+      "path": "src/shared/child-process/spawn-resolution.ts",
+      "renderedBytes": 1653,
+      "effectiveCharacters": 802
+    },
+    {
+      "path": "src/shared/child-process/process-tree-kill-gate.ts",
+      "renderedBytes": 210,
+      "effectiveCharacters": 97
+    },
+    {
+      "path": "src/shared/child-process/process-tree-termination.ts",
+      "renderedBytes": 5228,
+      "effectiveCharacters": 3214
+    },
+    {
+      "path": "src/shared/child-process/spawn-observer.ts",
+      "renderedBytes": 252,
+      "effectiveCharacters": 151
+    },
+    {
+      "path": "src/shared/growing-byte-buffer.ts",
+      "renderedBytes": 3175,
+      "effectiveCharacters": 2629
+    },
+    {
+      "path": "src/shared/child-process/bounded-output-sink.ts",
+      "renderedBytes": 1222,
+      "effectiveCharacters": 679
+    },
+    {
+      "path": "src/shared/child-process/child-termination-reporter.ts",
+      "renderedBytes": 335,
+      "effectiveCharacters": 195
+    },
+    {
+      "path": "src/shared/child-process/process-spec.ts",
+      "renderedBytes": 158,
+      "effectiveCharacters": 74
+    },
+    {
+      "path": "src/shared/child-process/run-process.ts",
+      "renderedBytes": 8519,
+      "effectiveCharacters": 5440
+    },
+    {
+      "path": "src/shared/orca-cli-command-name.ts",
+      "renderedBytes": 235,
+      "effectiveCharacters": 143
+    },
+    {
+      "path": "src/shared/tui-agent-config.ts",
+      "renderedBytes": 6763,
+      "effectiveCharacters": 5761
+    },
+    {
+      "path": "src/shared/ai-vault-types.ts",
+      "renderedBytes": 642,
+      "effectiveCharacters": 490
+    },
+    {
+      "path": "src/shared/wsl-paths.ts",
+      "renderedBytes": 634,
+      "effectiveCharacters": 513
+    },
+    {
+      "path": "src/shared/harness-injected-user-turns.ts",
+      "renderedBytes": 2098,
+      "effectiveCharacters": 1638
+    },
+    {
+      "path": "src/shared/antigravity-session-origin.ts",
+      "renderedBytes": 1036,
+      "effectiveCharacters": 846
+    },
+    {
+      "path": "src/shared/ai-vault-resume-path.ts",
+      "renderedBytes": 249,
+      "effectiveCharacters": 160
+    },
+    {
+      "path": "src/shared/powershell-native-argument.ts",
+      "renderedBytes": 189,
+      "effectiveCharacters": 105
+    },
+    {
+      "path": "src/shared/tui-agent-startup-shell.ts",
+      "renderedBytes": 7344,
+      "effectiveCharacters": 1713
+    },
+    {
+      "path": "src/shared/ai-vault-resume-command.ts",
+      "renderedBytes": 5641,
+      "effectiveCharacters": 4533
+    },
+    {
+      "path": "src/shared/execution-host.ts",
+      "renderedBytes": 105,
+      "effectiveCharacters": 37
+    },
+    {
+      "path": "src/main/ai-vault/session-scanner-first-user-prompt-capture.ts",
+      "renderedBytes": 283,
+      "effectiveCharacters": 171
+    },
+    {
+      "path": "src/main/ai-vault/session-scanner-grok-user-text.ts",
+      "renderedBytes": 478,
+      "effectiveCharacters": 336
+    },
+    {
+      "path": "src/shared/surrogate-safe-text-slice.ts",
+      "renderedBytes": 450,
+      "effectiveCharacters": 244
+    },
+    {
+      "path": "src/main/ai-vault/session-scanner-text-normalization.ts",
+      "renderedBytes": 5332,
+      "effectiveCharacters": 4505
+    },
+    {
+      "path": "src/main/ai-vault/session-scanner-first-user-prompt.ts",
+      "renderedBytes": 1120,
+      "effectiveCharacters": 863
+    },
+    {
+      "path": "src/main/ai-vault/session-scanner-record-value.ts",
+      "renderedBytes": 198,
+      "effectiveCharacters": 95
+    },
+    {
+      "path": "src/main/ai-vault/session-scanner-values.ts",
+      "renderedBytes": 690,
+      "effectiveCharacters": 501
+    },
+    {
+      "path": "src/main/ai-vault/session-transcript-consumers.ts",
+      "renderedBytes": 157,
+      "effectiveCharacters": 58
+    },
+    {
+      "path": "src/main/ai-vault/session-transcript-message-content.ts",
+      "renderedBytes": 492,
+      "effectiveCharacters": 277
+    },
+    {
+      "path": "src/main/ai-vault/session-scanner-accumulator.ts",
+      "renderedBytes": 5702,
+      "effectiveCharacters": 4529
+    },
+    {
+      "path": "src/main/ai-vault/session-scanner-codebuddy-parser.ts",
+      "renderedBytes": 2810,
+      "effectiveCharacters": 2337
+    }
+  ]
+}
