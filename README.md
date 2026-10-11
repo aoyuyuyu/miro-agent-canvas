@@ -1,6 +1,6 @@
 # Miro 多 Agent 同步画布 (Miro Agent Canvas)
 
-基于 React 18 + Vite + Electron 构建的无限画布客户端。作为本地各 Agent（Antigravity、Codex、Hermes、WorkBuddy 等）的交互中枢，支持双向实时对话、跨 Agent 历史互通与统一画布排版管理。
+基于 React 19 + Vite + Electron 构建的无限画布客户端。作为本地各 Agent（Antigravity、Codex、Hermes、WorkBuddy 等）的交互中枢，支持双向实时对话、跨 Agent 历史互通与统一画布排版管理。
 
 ---
 
@@ -56,7 +56,7 @@ miro-mvp-v0.1/
 ## 本地开发与构建
 
 ### 1. 环境要求
-- Node.js >= 18
+- Node.js ^20.19.0 或 >= 22.12.0（Vite 8 的要求）
 - Windows 10/11
 
 ### 2. 启动开发环境
@@ -71,7 +71,12 @@ npm run build
 npm start
 ```
 
-### 3. 构建发布到便携版
+### 3. 运行测试
+```bash
+npm test
+```
+
+### 4. 构建发布到便携版
 ```bash
 npm run build
 # 将 dist/ 与 electron/ 复制到运行目录即可
